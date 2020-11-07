@@ -21,6 +21,9 @@ F 0 "U1" H 5850 2650 50  0000 C CNN
 F 1 "STM32F030F4Px" H 5950 4150 50  0000 C CNN
 F 2 "Package_SO:TSSOP-20_4.4x6.5mm_P0.65mm" H 5100 2750 50  0001 R CNN
 F 3 "http://www.st.com/st-web-ui/static/active/en/resource/technical/document/datasheet/DM00088500.pdf" H 5500 3450 50  0001 C CNN
+F 4 "STM32F030F4P6" H 5500 3450 50  0001 C CNN "Mfr Part #"
+F 5 "LCSC" H 5500 3450 50  0001 C CNN "Supplier"
+F 6 "C32908" H 5500 3450 50  0001 C CNN "Supplier Part #"
 	1    5500 3450
 	1    0    0    -1  
 $EndComp
@@ -186,6 +189,9 @@ F 0 "C4" H 1715 4596 50  0000 L CNN
 F 1 "0.1uF" H 1715 4505 50  0000 L CNN
 F 2 "Capacitor_SMD:C_0603_1608Metric" H 1638 4400 50  0001 C CNN
 F 3 "~" H 1600 4550 50  0001 C CNN
+F 4 "0603F104Z160CT" H 1600 4550 50  0001 C CNN "Mfr Part #"
+F 5 "LCSC" H 1600 4550 50  0001 C CNN "Supplier"
+F 6 "C387984" H 1600 4550 50  0001 C CNN "Supplier Part #"
 	1    1600 4550
 	1    0    0    -1  
 $EndComp
@@ -224,6 +230,9 @@ F 0 "C3" H 1015 4146 50  0000 L CNN
 F 1 "0.1uF" H 1015 4055 50  0000 L CNN
 F 2 "Capacitor_SMD:C_0603_1608Metric" H 938 3950 50  0001 C CNN
 F 3 "~" H 900 4100 50  0001 C CNN
+F 4 "0603F104Z160CT" H 900 4100 50  0001 C CNN "Mfr Part #"
+F 5 "LCSC" H 900 4100 50  0001 C CNN "Supplier"
+F 6 "C387984" H 900 4100 50  0001 C CNN "Supplier Part #"
 	1    900  4100
 	1    0    0    -1  
 $EndComp

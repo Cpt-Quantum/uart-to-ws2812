@@ -1,166 +1,138 @@
+#include "inc/stm32f030x6.h"
+
+#include "peripherals.h"
+#include "ws2812.h"
+
 #include <stdint.h>
 #include <stdbool.h>
-#include "inc/nvic.h"
-#include "inc/rcc.h"
-#include "inc/gpio.h"
-#include "inc/timers.h"
-#include "inc/flash.h"
-#include "inc/irq.h"
 
-void start_timer(timer_index_t timer_index, uint16_t prescale, uint16_t count)
-{
-	/* Make sure the timer is disabled before starting */
-	TIMER_FIELD_WRITE(timer_index, cr1, cen, false);
+#define LED_PIN 0
 
-	/* Reset the timer */
-	switch(timer_index)
-	{
-		case TIM1_INDEX:
-			RCC_FIELD_WRITE(apb2rstr, tim1rst, true);
-			RCC_FIELD_WRITE(apb2rstr, tim1rst, false);
-			break;
-		case TIM15_INDEX:
-			RCC_FIELD_WRITE(apb2rstr, tim15rst, true);
-			RCC_FIELD_WRITE(apb2rstr, tim15rst, false);
-			break;
-		case TIM16_INDEX:
-			RCC_FIELD_WRITE(apb2rstr, tim16rst, true);
-			RCC_FIELD_WRITE(apb2rstr, tim16rst, false);
-			break;
-		case TIM17_INDEX:
-			RCC_FIELD_WRITE(apb2rstr, tim17rst, true);
-			RCC_FIELD_WRITE(apb2rstr, tim17rst, false);
-			break;
-		case TIM3_INDEX:
-			RCC_FIELD_WRITE(apb1rstr, tim3rst, true);
-			RCC_FIELD_WRITE(apb1rstr, tim3rst, false);
-			break;
-		case TIM6_INDEX:
-			RCC_FIELD_WRITE(apb1rstr, tim6rst, true);
-			RCC_FIELD_WRITE(apb1rstr, tim6rst, false);
-			break;
-		case TIM7_INDEX:
-			RCC_FIELD_WRITE(apb1rstr, tim7rst, true);
-			RCC_FIELD_WRITE(apb1rstr, tim7rst, false);
-			break;
-		case TIM14_INDEX:
-			RCC_FIELD_WRITE(apb1rstr, tim14rst, true);
-			RCC_FIELD_WRITE(apb1rstr, tim14rst, false);
-			break;
-	}
+#define NUM_LEDS 12
 
-	/* Set the prescaler */
-	TIMER_FIELD_WRITE(timer_index, psc, psc, prescale);
-	/* Set the value to count to */
-	TIMER_FIELD_WRITE(timer_index, arr, arr, count);
-	/* Send an update event to generate an update of its registers and reset it */
-	TIMER_FIELD_WRITE(timer_index, egr, ug, 1);
-	/* Setup the timer to trigger a hardware interrupt on reaching the count */
-	TIMER_FIELD_WRITE(timer_index, dier, uie, true);
-	/* Now enable the timer */
-	TIMER_FIELD_WRITE(timer_index, cr1, cen, true);
-}
+/* Define the LED data structure and point it at the LED data array */
+#define LED_BYTES 3
+uint8_t led_data[NUM_LEDS * LED_BYTES];
+led_t leds = {
+				.data = led_data,
+				.bit_mask = 0B10000000,
+				.arr_pos = 0,
+				.num_leds = NUM_LEDS,
+				.data_format = LED_GRB,
+				.led_bytes = LED_BYTES,
+			 };	
 
-void clock_setup(bool external_clk, bool use_pll, PLL_MULT_E pll_mult)
-{
-	/* Enable the selected clock and wait for it to be ready */
-	if (external_clk == true)
-	{
-		RCC_FIELD_WRITE(cr, hseon, true);
-		while(!(RCC_FIELD_READ(cr, hserdy))) {};
-	}
-	else
-	{
-		RCC_FIELD_WRITE(cr, hsion, true);
-		while(!(RCC_FIELD_READ(cr, hsirdy))) {};
-	}
-
-	/* Now enable the PLL if requested */
-	if (use_pll == true)
-	{
-		rcc_cfgr_t cfgr = { .mask= rcc->cfgr };
-		if (external_clk == true)
-		{
-			cfgr.pllsrc = 1;
-		}
-		else
-		{
-			cfgr.pllsrc = 0;
-		}
-		cfgr.pllmul = pll_mult;
-		rcc->cfgr = cfgr.mask;
-	
-		/* Turn the PLL on and wait for the hardware to set the ready flag */
-		RCC_FIELD_WRITE(cr, pllon, true);
-		while(!(RCC_FIELD_READ(cr, pllrdy))) {};
-	}
-
-	/* Now set the clock source according to the function parameters */
-	if (use_pll == true)
-	{
-		RCC_FIELD_WRITE(cfgr, sw, SYSCLK_SW_PLL);
-		/* Check it's set by reading SWS (switch status) */
-		while(RCC_FIELD_READ(cfgr, sws) != SYSCLK_SW_PLL) {};
-	}
-	else if (external_clk == true)
-	{
-		RCC_FIELD_WRITE(cfgr, sw, SYSCLK_SW_HSE);
-		/* Check it's set by reading SWS (switch status) */
-		while(RCC_FIELD_READ(cfgr, sws) != SYSCLK_SW_HSE) {};
-	}
-	else if (external_clk == false)
-	{
-		RCC_FIELD_WRITE(cfgr, sw, SYSCLK_SW_HSI);
-		/* Check it's set by reading SWS (switch status) */
-		while(RCC_FIELD_READ(cfgr, sws) != SYSCLK_SW_HSI) {};
-	}
-}
+#define SYSCLK_FREQ 48000000
 
 int main(void)
 {
-	/* Set up the flash wait states */
-	flash_acr_t acr = { .mask = flash->acr };
-	acr.latency = FLASH_ONE_WAIT;
-	acr.prftbe = true;
-	flash->acr = acr.mask;
+	/* Initialisation */
 
-	/* Clock setup */
+	/* Setup flash wait cycles */
+	FLASH->ACR &= ~(0x00000017);
+	FLASH->ACR |= (FLASH_ACR_LATENCY | FLASH_ACR_PRFTBE);
+
+	/* Initialise system clock */
 	clock_setup(false, true, PLL_MULT_X12);
-	#define CLOCK_FREQ (uint16_t)0x48000000
 
-	/* Enable the clock and NVIC for timer 3 */
-	RCC_FIELD_WRITE(apb1enr, tim3en, true);
-	NVIC_SetPriority(TIM3_IRQ, 0x03);
-	NVIC_EnableIRQ(TIM3_IRQ);
-
-	/* Turn on the clock for port A gpio */
-	RCC_FIELD_WRITE(ahbenr, iopaen, true);
-
-	/* Set PA0 to output mode, set speed to low  and set low */
-	GPIO_FIELD_WRITE(GPIOA, moder, moder0, GPIO_OUTPUT);
-	GPIO_FIELD_WRITE(GPIOA, ospeedr, ospeed0, GPIO_LOW_SPEED);
-	GPIO_FIELD_WRITE(GPIOA, odr, odr0, true);
+	/* Enable the clock for timer 3 */
+	RCC->APB1ENR |= RCC_APB1ENR_TIM3EN;
 
 	/* Initialise the timer */
-	start_timer(TIM3_INDEX, 48000, 1000);
+	init_timer(TIM3);
 
-	while(true)
+	/* Enable Port A GPIO clock */
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
+	/* Enable Port B GPIO clock */
+	RCC->AHBENR |= RCC_AHBENR_GPIOBEN;
+
+	/* Set PA4 to output and set high */
+	gpio_init(PORTA, LED_PIN, GPIO_OUTPUT, 0);
+	/* Finally set the pin high */
+	GPIOA->ODR |= (1 << LED_PIN);
+
+	/* Enable PB1 with alternate functionality */
+	gpio_init(PORTB, PIN_1, GPIO_ALT_MODE, GPIO_AF1);
+
+	/* Setup the SysTick peripheral for 1ms ticks */
+	SysTick_Config(SYSCLK_FREQ/1000);
+
+	/* End of initialisation */
+
+	/* Delay until LEDs are ready */
+	delay_ms(100);
+
+	/* Enable DMA and initialise the LEDs */
+	dma_setup();
+	led_init();
+
+	led_rgbw_write_all(&leds, 0,0, 0,0);
+	led_show(&leds, TIM3);
+
+	/* Loop forever */
+	while(1)
 	{
-		__asm__("NOP");
-	}
+	/* Set all LEDs to red and send out the data */
+	led_rgb_write_all(&leds, 180, 0, 0);
+	led_show(&leds, TIM3);
+
+	/* Wait 1s */
+	delay_ms(1000);
+
+	/* Set all LEDs to green and send out the data */
+	led_rgb_write_all(&leds, 0, 180, 0);
+	led_show(&leds, TIM3);
+
+	/* Wait 1s */
+	delay_ms(1000);
+
+	/* Set all LEDs to blue and send out the data */
+	led_rgb_write_all(&leds, 0, 0, 180);
+	led_show(&leds, TIM3);
+
+	/* Wait 1s */
+	delay_ms(1000);
+	};
 }
 
-/* Function the hardware will jump to when timer 6 triggers an interrupt */
 void TIM3_IRQHandler(void)
 {
 	/* Check the cause of the interrupt */
-	if (TIMER_FIELD_READ(TIM3_INDEX, sr, uif))
+	if (TIM3->SR & TIM_SR_UIF)
 	{
-		/* First clear the interrupt flag */
-		TIMER_FIELD_WRITE(TIM3_INDEX, sr, uif, false);
+		/* Clear the interrupt flag */
+		TIM3->SR &= ~(TIM_SR_UIF);
+	}
+}
 
-		/* Toggle the LED pin */
-		bool current_pin_state = GPIO_FIELD_READ(GPIOA, odr, odr0); 
-		GPIO_FIELD_WRITE(GPIOA, odr, odr0, !current_pin_state);
+void SysTick_Handler( void ) {
+	systick = systick + 1;
+}
+
+void DMA1_Channel2_3_IRQHandler(void)
+{
+	/* Half way through buffer interrupt */
+	if (DMA1->ISR & DMA_ISR_HTIF3)
+	{
+		/* Fill the lower half of the buffer */
+		led_fill_dma_buffer(&leds, DMA_LOWER_HALF_OFFSET, DMA_HALF_SIZE);
+
+		/* Clear the interrupt flag */
+		DMA1->IFCR = DMA_IFCR_CHTIF3;
+	}
+	/* End of buffer interrupt */
+	else if (DMA1->ISR & DMA_ISR_TCIF3)
+	{
+		/* Disable timer */
+		if (leds.arr_pos > (leds.num_leds * leds.led_bytes))
+		{
+			TIM3->CR1 &= ~(TIM_CR1_CEN);
+		}
+
+		/* Fill the upper half of the buffer */
+		led_fill_dma_buffer(&leds, DMA_UPPER_HALF_OFFSET, DMA_HALF_SIZE);
+	
+		/* Clear the interrupt flag */
+		DMA1->IFCR = DMA_IFCR_CTCIF3;
 	}
 }

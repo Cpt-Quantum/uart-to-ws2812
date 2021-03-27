@@ -6,21 +6,39 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+/* Set whether the board uses RGB or RGBW leds */
+#define RGBW
+
 #define LED_PIN 0
 
-#define NUM_LEDS 12
+#define NUM_LEDS 3
 
 /* Define the LED data structure and point it at the LED data array */
-#define LED_BYTES 3
-uint8_t led_data[NUM_LEDS * LED_BYTES];
-led_t leds = {
-				.data = led_data,
-				.bit_mask = 0B10000000,
-				.arr_pos = 0,
-				.num_leds = NUM_LEDS,
-				.data_format = LED_GRB,
-				.led_bytes = LED_BYTES,
-			 };	
+#ifdef RGB
+	#define LED_BYTES 3
+	uint8_t led_data[NUM_LEDS * LED_BYTES];
+	led_t leds = {
+					.data = led_data,
+					.bit_mask = 0B10000000,
+					.arr_pos = 0,
+					.num_leds = NUM_LEDS,
+					.data_format = LED_GRB,
+					.led_bytes = LED_BYTES,
+				 };
+#endif
+#ifdef RGBW
+	#define LED_BYTES 4
+	uint8_t led_data[NUM_LEDS * LED_BYTES];
+	led_t leds = {
+					.data = led_data,
+					.bit_mask = 0B10000000,
+					.arr_pos = 0,
+					.num_leds = NUM_LEDS,
+					.data_format = LED_RGBW,
+					.led_bytes = LED_BYTES,
+				 };
+
+#endif
 
 #define SYSCLK_FREQ 48000000
 
@@ -72,26 +90,58 @@ int main(void)
 	/* Loop forever */
 	while(1)
 	{
+#ifdef RGB
+		/* Set all LEDs to red and send out the data */
+		led_rgb_write_all(&leds, 180, 0, 0);
+		led_show(&leds, TIM3);
+
+		/* Wait 1s */
+		delay_ms(1000);
+
+		/* Set all LEDs to green and send out the data */
+		led_rgb_write_all(&leds, 0, 180, 0);
+		led_show(&leds, TIM3);
+
+		/* Wait 1s */
+		delay_ms(1000);
+
+		/* Set all LEDs to blue and send out the data */
+		led_rgb_write_all(&leds, 0, 0, 180);
+		led_show(&leds, TIM3);
+
+		/* Wait 1s */
+		delay_ms(1000);
+#endif
+#ifdef RGBW
 	/* Set all LEDs to red and send out the data */
-	led_rgb_write_all(&leds, 180, 0, 0);
-	led_show(&leds, TIM3);
+		led_rgbw_write_all(&leds, 180, 0, 0, 0);
+		led_show(&leds, TIM3);
 
-	/* Wait 1s */
-	delay_ms(1000);
+		/* Wait 1s */
+		delay_ms(1000);
 
-	/* Set all LEDs to green and send out the data */
-	led_rgb_write_all(&leds, 0, 180, 0);
-	led_show(&leds, TIM3);
+		/* Set all LEDs to green and send out the data */
+		led_rgbw_write_all(&leds, 0, 180, 0, 0);
+		led_show(&leds, TIM3);
 
-	/* Wait 1s */
-	delay_ms(1000);
+		/* Wait 1s */
+		delay_ms(1000);
 
-	/* Set all LEDs to blue and send out the data */
-	led_rgb_write_all(&leds, 0, 0, 180);
-	led_show(&leds, TIM3);
+		/* Set all LEDs to blue and send out the data */
+		led_rgbw_write_all(&leds, 0, 0, 180, 0);
+		led_show(&leds, TIM3);
 
-	/* Wait 1s */
-	delay_ms(1000);
+		/* Wait 1s */
+		delay_ms(1000);
+
+		/* Set all LEDs to white and send out the data */
+		led_rgbw_write_all(&leds, 0, 0, 0, 180);
+		led_show(&leds, TIM3);
+
+		/* Wait 1s */
+		delay_ms(1000);
+
+#endif
 	};
 }
 

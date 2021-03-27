@@ -1,2 +1,5 @@
-*/gerber/*
+/gerber/*
 *.zip
+*.o
+*.elf
+*.bin
